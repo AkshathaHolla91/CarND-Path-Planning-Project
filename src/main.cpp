@@ -164,15 +164,16 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 
 }
 bool isCarInRangeForLane(vector<vector<double>> sensor_fusion,double car_s, int lane, int previous_size){
-	bool changeLane=false;
+	bool changeLane=true;
 	for(int i=0;i<sensor_fusion.size();i++){
 		double vx=sensor_fusion[i][3];
 		double vy=sensor_fusion[i][4];
 		double check_speed=sqrt(vx*vx+vy*vy);
 		double check_car_s=sensor_fusion[i][5];
 		check_car_s+=(double)previous_size*0.02*check_speed;
-		if(fabs(check_car_s-car_s)>20){
-			changeLane=true;
+		if(fabs(check_car_s-car_s)<20){
+			changeLane=false;
+			break;
 		}
 	}
 	return changeLane;
