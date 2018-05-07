@@ -163,6 +163,20 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 	return {x,y};
 
 }
+bool isCarInRangeForLane(vector<vector<double>> sensor_fusion,double car_s, int lane, int previous_size){
+	bool changeLane=false;
+	for(int i=0;i<sensor_fusion.size();i++){
+		double vx=sensor_fusion[i][3];
+		double vy=sensor_fusion[i][4];
+		double check_speed=sqrt(vx*vx+vy*vy);
+		double check_car_s=sensor_fusion[i][5];
+		check_car_s+=(double)previous_size*0.02*check_speed;
+		if(fabs(check_car_s-car_s)>20){
+			changeLane=true;
+		}
+	}
+	return changeLane;
+}
 
 int main() {
   uWS::Hub h;
@@ -202,6 +216,7 @@ int main() {
   }
 	int lane=1;
 	double ref_vel=0.0;
+
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane, &ref_vel](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
@@ -261,11 +276,12 @@ int main() {
 					if(check_car_s>car_s && (check_car_s-car_s)<30){
 							//ref_vel=29.5;
 							too_close=true;
-							if(lane+1>=0 && lane+1<=2){
+							
+							if(lane+1>=0 && lane+1<=2 && isCarInRangeForLane(sensor_fusion,car_s, lane+1,  previous_size)){
 								too_close=false;
 								lane+=1;
 							}
-							else if(lane-1>=0 && lane-1<=2){
+							else if(lane-1>=0 && lane-1<=2 && isCarInRangeForLane(sensor_fusion,car_s, lane-1,  previous_size)){
 								too_close=false;
 								lane-=1;
 							}
