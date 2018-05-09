@@ -60,11 +60,7 @@ the path has processed since last time.
 
 2. There will be some latency between the simulator running and the path planner returning a path, with optimized code usually its not very long maybe just 1-3 time steps. During this delay the simulator will continue using points that it was last given, because of this its a good idea to store the last points you have used so you can have a smooth transition. previous_path_x, and previous_path_y can be helpful for this transition since they show the last points given to the simulator controller with the processed points already removed. You would either return a path that extends this previous path or make sure to create a new path that has a smooth transition with this last path.
 
-## Tips
 
-A really helpful resource for doing this project and creating smooth trajectories was using http://kluge.in-chemnitz.de/opensource/spline/, the spline function is in a single hearder file is really easy to use.
-
----
 
 ## Dependencies
 
@@ -87,54 +83,21 @@ A really helpful resource for doing this project and creating smooth trajectorie
     git checkout e94b6e1
     ```
 
-## Editor Settings
+#### Model Documentation
 
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
-
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
-
-## Code Style
-
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
-
-## Project Instructions and Rubric
-
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
+Here we output a list of x and y global map co-ordinates where each pair of x and y  co-ordinates is a point and all the points together form a trajectory which the car in the simulator follows. We initially start with checking the size of the previous path traversed by the car and noting the size. If a previous path exists(ie. if the car is not stationary) then the end longitudnal displacement value (s) is considered as the cars current longitudnal displacement.The next step would be to iterate over the sensor fusion list to get the sensor data(x,y,vx, vy, s, d) of all cars on the highway, using the obtained values we check the lateral displacement of each car in the list and ascertain whether they are in the same lane as that of the car. If yes we check whether the car is in front of our car and if the distance between the two cars is less than 30m. If this condition holds good then it means that the car in front is travelling at a lower velocity hence we would need to lower our velocity gradually and change lanes if the conditions of the neighbouring lanes permit it. The velocity change here is controlled by setting a boolean variable 'too_close', and 'isCarInRangeForLane' function is used to iterate over the sensor fusion data of the cars in the lane to the right of the current lane first and if there are no cars within 15 m in the forward or backward direction(ie less probability of being obstructed by a car during lane transition) then the lane is changed to ensure that the car is able to maintain a speed close to the 50mph speed limit. If the right lane change is not possible the same process is repeated for the left lane to check whether a smooth transition to the left lane is possible. If both cases are not possible then the velocity of the car is gradually reduced at the rate of 0.324 miles per hour every 0.02 seconds(ie acceleration of 7.2 m/s^2) to avoid collison with the vehicle in front. Once a lane change is made or if there is no chance of collision from any upcoming vehicle then we also ensure that the velocity of the car is maintained close to the speed limit by gradually increasing the velocity of the car by 0.224 miles per hour every 0.02 seconds(ie acceleration of 5m/s^2)if it is lower than the reference velocity which is set to 49.5miles per hour. This gradual control of velocity also minimizes jerk that is experienced otherwise during the starting of the car or lane shift and other scenarios.
 
 
-## Call for IDE Profiles Pull Requests
+The trajectory generation for the car is done here by using the spline function since it ensures that the car passes through every point and hence gives a smoother trajectory. The input to the spline function are 2 lists of x and y points which are calculated as follows.
+*  If the previous path has no points  or less than 2 points left then use current car x and y to calculate previous car x & y and add to ptsx and ptsy list.
+* If previous path has enough points add the last 2 points to the ptsx and ptsy list.
+* Predict future waypoints at distances of 30, 60 and 90m and add to points list. 
 
-Help your fellow students!
+Once the ptsx and ptsy points are calculated and added they are converted to car co-ordinates from map co-ordinates using translation and rotation. Then these points are fit to a spline function to obtain the trajectory. We take the points remaining in the previous path (unused points from previous path) and add them to the next_x_vals and next_y_vals list ie the waypoints list. Considering an x value of 30m ahead of the car the corresponding y value is calculated using the spline function. This x and y point is used to calculate the target distance which is further used to calculate the number of divisions the trajectory is to be split into. For each of the remaining points which are left after adding the points from the previous path(50- points from previous path) we feed the x points to the spline to get the corresponding y point which is later converted back into map co-ordinates and added to the waypoints list. Using information from the previous path ensures that there is a smooth transition from cycle to cycle. Hence this results in a smooth trajectory transition in terms of lane change or change in speed and allows the car to traverse smoothly without unnecesary jerks and collisions as explained above.
 
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to ensure
-that students don't feel pressured to use one IDE or another.
 
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
 
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
 
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
 
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
 
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
 

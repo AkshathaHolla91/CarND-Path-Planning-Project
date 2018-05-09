@@ -163,16 +163,21 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 	return {x,y};
 
 }
+//Checks whether any car is within a distance of  15m in the forward or backward direction for a given lane
 bool isCarInRangeForLane(vector<vector<double>> sensor_fusion,double car_s, int lane, int previous_size){
 	bool changeLane=true;
+	//Iterate over the cars list from the sensor fusion data
 	for(int i=0;i<sensor_fusion.size();i++){
 		double d=sensor_fusion[i][6];
+		//Check whether the car is in the same lane as our car
 		if((d<2+4*lane+2) && (d>2+4*lane-2)){
 			double vx=sensor_fusion[i][3];
 			double vy=sensor_fusion[i][4];
 			double check_speed=sqrt(vx*vx+vy*vy);
 			double check_car_s=sensor_fusion[i][5];
+			//Calculate the longitudnal displacement of the car using previous size and calculated speed 
 			check_car_s+=(double)previous_size*0.02*check_speed;
+			//check whether there is a chance of collision by checking whether there are any cars in 15m proximity in both forward and backward direction
 			if(fabs(check_car_s-car_s)<15){
 				changeLane=false;
 				break;
@@ -267,9 +272,10 @@ int main() {
 				car_s=end_path_s;
 			}
 			bool too_close=false;
-
+			//Iterate over the sensor fusion list to get the data(x,y,vx, vy, s, d) of all cars in the current lane
 			for(int i=0;i<sensor_fusion.size();i++){
 				double d=sensor_fusion[i][6];
+				//Check whether the car in the list is in the same lane as our car
 				if((d<2+4*lane+2) && (d>2+4*lane-2)){
 					double vx=sensor_fusion[i][3];
 					double vy=sensor_fusion[i][4];
@@ -277,14 +283,17 @@ int main() {
 					double check_car_s=sensor_fusion[i][5];
 
 					check_car_s+=(double)previous_size*0.02*check_speed;
+					//Check whether the car is in front of our car and if the distance between the two cars is less than 30m
 					if(check_car_s>car_s && (check_car_s-car_s)<30){
 							//ref_vel=29.5;
+
 							too_close=true;
-							
+							//Change Lane towards right lane if there are no cars within collision range 
 							if(lane+1>=0 && lane+1<=2 && isCarInRangeForLane(sensor_fusion,car_s, lane+1,  previous_size)){
 								too_close=false;
 								lane+=1;
 							}
+							//Change Lane towards left lane if there are no cars within collision range 
 							else if(lane-1>=0 && lane-1<=2 && isCarInRangeForLane(sensor_fusion,car_s, lane-1,  previous_size)){
 								too_close=false;
 								lane-=1;
@@ -292,9 +301,11 @@ int main() {
 					}
 				}
 			}
+			//If the car in front is too close reduce the reference velocity at the rate of 7.24m per second
 			if(too_close){
 				ref_vel-=0.324;
 			}
+			//If the velocity of the car is less than 49.5mph then gradually increase it at 5m per second
 			else if(ref_vel<49.5){
 				ref_vel+=0.224;
 			}
@@ -311,7 +322,7 @@ int main() {
 						double ref_y=car_y;
 						double ref_yaw=deg2rad(car_yaw);
 
-
+						//If the previous path has no points left  then use current car x and y to calculate previous car x & y and add to pts list
 						if(previous_size<2){
 
 								double prev_car_x=car_x-cos(car_yaw);
@@ -322,6 +333,7 @@ int main() {
 								ptsy.push_back(car_y);
 								
 						}
+						//If previous path has enough points add the last 2 points to the pts list
 						else{
 							ref_x=previous_path_x[previous_size-1];
 							ref_y=previous_path_y[previous_size-1];
@@ -336,7 +348,7 @@ int main() {
 							ptsy.push_back(ref_prev_y);
 							ptsy.push_back(ref_y);
 						}
-
+						//Predict future waypoints at distances of 30, 60 and 90m and add to points list
 						vector<double> next_wp_30=getXY(car_s+30,2+4*lane,map_waypoints_s,map_waypoints_x,map_waypoints_y);
 						vector<double> next_wp_60=getXY(car_s+60,2+4*lane,map_waypoints_s,map_waypoints_x,map_waypoints_y);
 						vector<double> next_wp_90=getXY(car_s+90,2+4*lane,map_waypoints_s,map_waypoints_x,map_waypoints_y);
@@ -348,7 +360,7 @@ int main() {
 						ptsy.push_back(next_wp_30[1]);
 						ptsy.push_back(next_wp_60[1]);
 						ptsy.push_back(next_wp_90[1]);
-
+						//Convert pts lists from map co-ordinates to car co-ordinates
 						for(int i=0;i<ptsx.size();i++){
 							double shift_x=ptsx[i]-ref_x;
 							double shift_y=ptsy[i]-ref_y;
@@ -358,23 +370,27 @@ int main() {
 						}
 
 						tk::spline s;
+						//Use the converted pts list (waypoints) in spline to create a trajectory
 						s.set_points(ptsx,ptsy);
+						//Push remaining points from previous path to the next waypoints list
 						for(int i=0;i<previous_path_x.size();i++){
 							next_x_vals.push_back(previous_path_x[i]);
 							next_y_vals.push_back(previous_path_y[i]);
 						}
 
 						double target_x=30;
+						//Get the y point for the given x point which is 30 m ahead of the current position from the spline
 						double target_y=s(target_x);
 						double target_dist=sqrt(target_x*target_x+target_y*target_y);
 						double x_add_on=0;
 
 						
 
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+						//Keeping the remaining points from previous path , calculate 50-remaining points using the spline
 						for(int i=0; i<50-previous_path_x.size(); i++){
-
+							//Find the number of divisions that the trajectory has to be split into
 							double N=target_dist/(0.02*ref_vel/2.24);
+							//Calculate remaining x and y points (using spline)
 							double x_point=x_add_on+target_x/N;
 							double y_point=s(x_point);
 
@@ -382,13 +398,13 @@ int main() {
 
 							double x_ref=x_point;
 							double y_ref=y_point;
-
+							//Convert back from car co-ordinates to map co-ordinates
 							x_point=x_ref*cos(ref_yaw)-y_ref*sin(ref_yaw);
 							y_point=x_ref*sin(ref_yaw)+y_ref*cos(ref_yaw);
 
 							x_point+=ref_x;
 							y_point+=ref_y;
-
+							//Push the calculated points to the next waypoints list
 							next_x_vals.push_back(x_point);
 							next_y_vals.push_back(y_point);
 
